@@ -16,6 +16,7 @@ namespace TYPO3\CMS\Core\Utility;
 
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\HiddenRestriction;
+use TYPO3\CMS\Core\Service\SiteService;
 
 /**
  * Class to handle mail specific functionality
@@ -78,23 +79,11 @@ class MailUtility
         if (!GeneralUtility::validEmail($address)) {
             // just get us a domain record we can use as the host
             $host = '';
-            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
-                ->getQueryBuilderForTable('sys_domain');
 
-            $queryBuilder->getRestrictions()
-                ->removeAll()
-                ->add(GeneralUtility::makeInstance(HiddenRestriction::class));
-
-            $domainRecord = $queryBuilder
-                ->select('domainName')
-                ->from('sys_domain')
-                ->orderBy('pid', 'ASC')
-                ->orderBy('sorting', 'ASC')
-                ->execute()
-                ->fetch();
-
-            if (!empty($domainRecord['domainName'])) {
-                $tempUrl = $domainRecord['domainName'];
+            $domainService = GeneralUtility::makeInstance(SiteService::class);
+            $firstDomain = $domainService->getFirstDomain();
+            if ($firstDomain) {
+                $tempUrl = $firstDomain;
                 if (!GeneralUtility::isFirstPartOfStr($tempUrl, 'http')) {
                     // shouldn't be the case anyways, but you never know
                     // ... there're crazy people out there

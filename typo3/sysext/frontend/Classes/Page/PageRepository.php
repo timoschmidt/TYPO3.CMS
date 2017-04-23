@@ -22,6 +22,7 @@ use TYPO3\CMS\Core\Database\Query\Restriction\FrontendRestrictionContainer;
 use TYPO3\CMS\Core\Database\Query\Restriction\FrontendWorkspaceRestriction;
 use TYPO3\CMS\Core\Resource\Exception\FileDoesNotExistException;
 use TYPO3\CMS\Core\Resource\FileRepository;
+use TYPO3\CMS\Core\Service\SiteService;
 use TYPO3\CMS\Core\Utility\ExtensionManagementUtility;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\HttpUtility;
@@ -850,61 +851,15 @@ class PageRepository
         // Appending to domain string
         $domain .= $path;
         $domain = preg_replace('/\\/*$/', '', $domain);
-        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('pages');
-        $queryBuilder->getRestrictions()->removeAll();
-        $row = $queryBuilder
-            ->select(
-                'pages.uid',
-                'sys_domain.redirectTo',
-                'sys_domain.redirectHttpStatusCode',
-                'sys_domain.prepend_params'
-            )
-            ->from('pages')
-            ->from('sys_domain')
-            ->where(
-                $queryBuilder->expr()->eq('pages.uid', $queryBuilder->quoteIdentifier('sys_domain.pid')),
-                $queryBuilder->expr()->eq(
-                    'sys_domain.hidden',
-                    $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
-                ),
-                $queryBuilder->expr()->orX(
-                    $queryBuilder->expr()->eq(
-                        'sys_domain.domainName',
-                        $queryBuilder->createNamedParameter($domain, \PDO::PARAM_STR)
-                    ),
-                    $queryBuilder->expr()->eq(
-                        'sys_domain.domainName',
-                        $queryBuilder->createNamedParameter($domain . '/', \PDO::PARAM_STR)
-                    )
-                ),
-                QueryHelper::stripLogicalOperatorPrefix($this->where_hid_del),
-                QueryHelper::stripLogicalOperatorPrefix($this->where_groupAccess)
-            )
-            ->setMaxResults(1)
-            ->execute()
-            ->fetch();
 
-        if (!$row) {
+        $domainService = GeneralUtility::makeInstance(SiteService::class);
+        $pageId = $domainService->getRootPageOfDomain($domain);
+
+        if (!$pageId) {
             return '';
         }
 
-        if ($row['redirectTo']) {
-            $redirectUrl = $row['redirectTo'];
-            if ($row['prepend_params']) {
-                $redirectUrl = rtrim($redirectUrl, '/');
-                $prependStr = ltrim(substr($request_uri, strlen($path)), '/');
-                $redirectUrl .= '/' . $prependStr;
-            }
-            $statusCode = (int)$row['redirectHttpStatusCode'];
-            if ($statusCode && defined(HttpUtility::class . '::HTTP_STATUS_' . $statusCode)) {
-                HttpUtility::redirect($redirectUrl, constant(HttpUtility::class . '::HTTP_STATUS_' . $statusCode));
-            } else {
-                HttpUtility::redirect($redirectUrl, HttpUtility::HTTP_STATUS_301);
-            }
-            die;
-        } else {
-            return $row['uid'];
-        }
+        return $pageId;
     }
 
     /**

@@ -35,6 +35,7 @@ use TYPO3\CMS\Core\Resource\Exception\ResourceDoesNotExistException;
 use TYPO3\CMS\Core\Resource\File;
 use TYPO3\CMS\Core\Resource\ProcessedFile;
 use TYPO3\CMS\Core\Resource\ResourceFactory;
+use TYPO3\CMS\Core\Service\SiteService;
 use TYPO3\CMS\Core\Type\Bitmask\Permission;
 use TYPO3\CMS\Core\TypoScript\Parser\TypoScriptParser;
 use TYPO3\CMS\Core\Utility\ArrayUtility;
@@ -2743,8 +2744,8 @@ class BackendUtility
             if ($domainName) {
                 $domain = $domainName;
             } else {
-                $domainRecord = self::getDomainStartPage($urlParts['host'], $urlParts['path']);
-                $domain = $domainRecord['domainName'];
+                $domainData = self::getDomainStartPage($urlParts['host'], $urlParts['path']);
+                $domain = $domainData;
             }
             if ($domain) {
                 $domain = $protocol . '://' . $domain;
@@ -3470,35 +3471,10 @@ class BackendUtility
      */
     public static function firstDomainRecord($rootLine)
     {
-        $queryBuilder = static::getQueryBuilderForTable('sys_domain');
-        $queryBuilder->getRestrictions()
-            ->removeAll()
-            ->add(GeneralUtility::makeInstance(DeletedRestriction::class))
-            ->add(GeneralUtility::makeInstance(BackendWorkspaceRestriction::class));
-
-        $queryBuilder->select('domainName')
-            ->from('sys_domain')
-            ->where(
-                $queryBuilder->expr()->eq(
-                    'pid',
-                    $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT, ':pid')
-                ),
-                $queryBuilder->expr()->eq(
-                    'redirectTo',
-                    $queryBuilder->createNamedParameter('', \PDO::PARAM_STR)
-                ),
-                $queryBuilder->expr()->eq(
-                    'hidden',
-                    $queryBuilder->createNamedParameter(0, \PDO::PARAM_INT)
-                )
-            )
-            ->setMaxResults(1)
-            ->orderBy('sorting');
+        $domainService = GeneralUtility::makeInstance(SiteService::class);
 
         foreach ($rootLine as $row) {
-            $domainName = $queryBuilder->setParameter('pid', $row['uid'], \PDO::PARAM_INT)
-                ->execute()
-                ->fetchColumn(0);
+            $domainName = $domainService->getFirstDomainForPage($row['uid']);
 
             if ($domainName) {
                 return rtrim($domainName, '/');
@@ -3523,36 +3499,10 @@ class BackendUtility
         // Stuff
         $domain .= $path;
 
-        $queryBuilder = static::getQueryBuilderForTable('sys_domain');
-        $queryBuilder->getRestrictions()
-            ->removeAll()
-            ->add(GeneralUtility::makeInstance(DeletedRestriction::class));
+        $domainService = GeneralUtility::makeInstance(SiteService::class);
+        $foundDomain = $domainService->getRootPageOfDomain($domain);
 
-        $result = $queryBuilder
-            ->select('sys_domain.*')
-            ->from('sys_domain')
-            ->from('pages')
-            ->where(
-                $queryBuilder->expr()->eq(
-                    'sys_domain.pid',
-                    $queryBuilder->quoteIdentifier('pages.uid')
-                ),
-                $queryBuilder->expr()->orX(
-                    $queryBuilder->expr()->eq(
-                        'sys_domain.domainName',
-                        $queryBuilder->createNamedParameter($domain, \PDO::PARAM_STR)
-                    ),
-                    $queryBuilder->expr()->eq(
-                        'sys_domain.domainName',
-                        $queryBuilder->createNamedParameter($domain . '/', \PDO::PARAM_STR)
-                    )
-                )
-
-            )
-            ->execute()
-            ->fetch();
-
-        return $result;
+        return $foundDomain ? $domain : '';
     }
 
     /**

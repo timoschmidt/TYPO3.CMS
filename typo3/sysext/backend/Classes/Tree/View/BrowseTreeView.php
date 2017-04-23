@@ -16,6 +16,7 @@ namespace TYPO3\CMS\Backend\Tree\View;
 
 use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Database\ConnectionPool;
+use TYPO3\CMS\Core\Service\SiteService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
@@ -148,23 +149,12 @@ class BrowseTreeView extends AbstractTreeView
             $title = parent::getTitleStr($row, $titleLen);
         }
         if (!empty($row['is_siteroot']) && $this->getBackendUser()->getTSConfigVal('options.pageTree.showDomainNameWithTitle')) {
-            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('sys_domain');
-            $row = $queryBuilder
-                ->select('domainName', 'sorting')
-                ->from('sys_domain')
-                ->where(
-                    $queryBuilder->expr()->eq(
-                        'pid',
-                        $queryBuilder->createNamedParameter($row['uid'], \PDO::PARAM_INT)
-                    )
-                )
-                ->orderBy('sorting')
-                ->setMaxResults(1)
-                ->execute()
-                ->fetch();
 
-            if ($row !== false) {
-                $title = sprintf('%s [%s]', $title, htmlspecialchars($row['domainName']));
+            $domainService = GeneralUtility::makeInstance(SiteService::class);
+            $domain = $domainService->getFirstDomainForPage($row['uid']);
+
+            if ($domain) {
+                $title = sprintf('%s [%s]', $title, htmlspecialchars($domain));
             }
         }
         return $title;

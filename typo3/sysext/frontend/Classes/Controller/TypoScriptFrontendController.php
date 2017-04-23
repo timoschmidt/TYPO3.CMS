@@ -36,6 +36,7 @@ use TYPO3\CMS\Core\Locking\LockingStrategyInterface;
 use TYPO3\CMS\Core\Page\PageRenderer;
 use TYPO3\CMS\Core\Resource\StorageRepository;
 use TYPO3\CMS\Core\Service\DependencyOrderingService;
+use TYPO3\CMS\Core\Service\SiteService;
 use TYPO3\CMS\Core\TimeTracker\TimeTracker;
 use TYPO3\CMS\Core\TypoScript\Parser\TypoScriptParser;
 use TYPO3\CMS\Core\TypoScript\TemplateService;
@@ -1839,6 +1840,7 @@ class TypoScriptFrontendController
      */
     public function findDomainRecord($recursive = false)
     {
+
         if ($recursive) {
             $pageUid = 0;
             $host = explode('.', GeneralUtility::getIndpEnv('HTTP_HOST'));
@@ -4374,61 +4376,6 @@ class TypoScriptFrontendController
         return $result;
     }
 
-    /**
-     * Fetches/returns the cached contents of the sys_domain database table.
-     *
-     * @return array Domain data
-     */
-    protected function getSysDomainCache()
-    {
-        $entryIdentifier = 'core-database-sys_domain-complete';
-        /** @var $runtimeCache \TYPO3\CMS\Core\Cache\Frontend\AbstractFrontend */
-        $runtimeCache = GeneralUtility::makeInstance(CacheManager::class)->getCache('cache_runtime');
-
-        $sysDomainData = [];
-        if ($runtimeCache->has($entryIdentifier)) {
-            $sysDomainData = $runtimeCache->get($entryIdentifier);
-        } else {
-            $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('sys_domain');
-            $queryBuilder->setRestrictions(GeneralUtility::makeInstance(FrontendRestrictionContainer::class));
-            $result = $queryBuilder
-                ->select('uid', 'pid', 'domainName', 'forced')
-                ->from('sys_domain')
-                ->where(
-                    $queryBuilder->expr()->eq(
-                        'redirectTo',
-                        $queryBuilder->createNamedParameter('', \PDO::PARAM_STR)
-                    )
-                )
-                ->orderBy('sorting', 'ASC')
-                ->execute();
-
-            while ($row = $result->fetch()) {
-                // if there is already an entry for this pid, check if we should overwrite it
-                if (isset($sysDomainData[$row['pid']])) {
-                    // There is already a "forced" entry, which must not be overwritten
-                    if ($sysDomainData[$row['pid']]['forced']) {
-                        continue;
-                    }
-
-                    // The current domain record is also NOT-forced, keep the old unless the new one matches the current request
-                    if (!$row['forced'] && !$this->domainNameMatchesCurrentRequest($row['domainName'])) {
-                        continue;
-                    }
-                }
-
-                // as we passed all previous checks, we save this domain for the current pid
-                $sysDomainData[$row['pid']] = [
-                    'uid' => $row['uid'],
-                    'pid' => $row['pid'],
-                    'domainName' => rtrim($row['domainName'], '/'),
-                    'forced' => $row['forced'],
-                ];
-            }
-            $runtimeCache->set($entryIdentifier, $sysDomainData);
-        }
-        return $sysDomainData;
-    }
 
     /**
      * Whether the given domain name (potentially including a path segment) matches currently requested host or
@@ -4444,36 +4391,6 @@ class TypoScriptFrontendController
         return $currentDomain === $domainName || $currentDomain . $currentPathSegment === $domainName;
     }
 
-    /**
-     * Obtains domain data for the target pid. Domain data is an array with
-     * 'pid', 'domainName' and 'forced' members (see sys_domain table for
-     * meaning of these fields.
-     *
-     * @param int $targetPid Target page id
-     * @return mixed Return domain data or NULL
-    */
-    public function getDomainDataForPid($targetPid)
-    {
-        // Using array_key_exists() here, nice $result can be NULL
-        // (happens, if there's no domain records defined)
-        if (!array_key_exists($targetPid, $this->domainDataCache)) {
-            $result = null;
-            $sysDomainData = $this->getSysDomainCache();
-            $rootline = $this->sys_page->getRootLine($targetPid);
-            // walk the rootline downwards from the target page
-            // to the root page, until a domain record is found
-            foreach ($rootline as $pageInRootline) {
-                $pidInRootline = $pageInRootline['uid'];
-                if (isset($sysDomainData[$pidInRootline])) {
-                    $result = $sysDomainData[$pidInRootline];
-                    break;
-                }
-            }
-            $this->domainDataCache[$targetPid] = $result;
-        }
-
-        return $this->domainDataCache[$targetPid];
-    }
 
     /**
      * Obtains the domain name for the target pid. If there are several domains,
@@ -4484,8 +4401,9 @@ class TypoScriptFrontendController
      */
     public function getDomainNameForPid($targetPid)
     {
-        $domainData = $this->getDomainDataForPid($targetPid);
-        return $domainData ? $domainData['domainName'] : null;
+        $domainService = GeneralUtility::makeInstance(SiteService::class);
+        $domain = $domainService->getFirstDomainForPage((int)$targetPid);
+        return $domain ?: null;
     }
 
     /**

@@ -19,6 +19,7 @@ use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\FrontendRestrictionContainer;
 use TYPO3\CMS\Core\Html\HtmlParser;
+use TYPO3\CMS\Core\Service\SiteService;
 use TYPO3\CMS\Core\TypoScript\TypoScriptService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
@@ -1431,23 +1432,10 @@ class SearchController extends \TYPO3\CMS\Extbase\Mvc\Controller\ActionControlle
      */
     protected function getFirstSysDomainRecordForPage($id)
     {
-        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('sys_domain');
-        $queryBuilder->setRestrictions(GeneralUtility::makeInstance(FrontendRestrictionContainer::class));
-        $row = $queryBuilder
-            ->select('domainName')
-            ->from('sys_domain')
-            ->where(
-                $queryBuilder->expr()->eq(
-                    'pid',
-                    $queryBuilder->createNamedParameter($id, \PDO::PARAM_INT)
-                )
-            )
-            ->orderBy('sorting')
-            ->setMaxResults(1)
-            ->execute()
-            ->fetch();
+        $domainService = GeneralUtility::makeInstance(SiteService::class);
+        $domain = $domainService->getFirstDomainForPage((int)$id);
 
-        return rtrim($row['domainName'], '/');
+        return rtrim($domain, '/');
     }
 
     /**

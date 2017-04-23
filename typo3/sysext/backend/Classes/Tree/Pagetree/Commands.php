@@ -18,6 +18,7 @@ use TYPO3\CMS\Backend\Utility\BackendUtility;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Imaging\Icon;
 use TYPO3\CMS\Core\Imaging\IconFactory;
+use TYPO3\CMS\Core\Service\SiteService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Core\Utility\MathUtility;
 use TYPO3\CMS\Core\Versioning\VersionState;
@@ -283,17 +284,10 @@ class Commands
      */
     public static function getDomainName($uid)
     {
-        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
-            ->getQueryBuilderForTable('sys_domain');
-        $domain = $queryBuilder
-            ->select('domainName')
-            ->from('sys_domain')
-            ->where($queryBuilder->expr()->eq('pid', $queryBuilder->createNamedParameter($uid, \PDO::PARAM_INT)))
-            ->setMaxResults(1)
-            ->orderBy('sorting')
-        ->execute()
-        ->fetch();
-        return is_array($domain) ? htmlspecialchars($domain['domainName']) : '';
+        $domainService = GeneralUtility::makeInstance(SiteService::class);
+        $domain = $domainService->getFirstDomainForPage($uid);
+
+        return $domain ?: '';
     }
 
     /**

@@ -45,11 +45,6 @@ class FrontendLoginControllerTest extends \TYPO3\TestingFramework\Core\Unit\Unit
     protected $testSitePath;
 
     /**
-     * @var string
-     */
-    protected $testTableName;
-
-    /**
      * @var array
      */
     protected $singletonInstances;
@@ -62,7 +57,6 @@ class FrontendLoginControllerTest extends \TYPO3\TestingFramework\Core\Unit\Unit
         $this->singletonInstances = GeneralUtility::getSingletonInstances();
         $GLOBALS['TSFE'] = new \stdClass();
         $GLOBALS['TSFE']->gr_list = '0,-1';
-        $this->testTableName = 'sys_domain';
         $this->testHostName = 'hostname.tld';
         $this->testSitePath = '/';
         $this->accessibleFixture = $this->getAccessibleMock(\TYPO3\CMS\Felogin\Controller\FrontendLoginController::class, ['dummy']);
@@ -113,21 +107,6 @@ class FrontendLoginControllerTest extends \TYPO3\TestingFramework\Core\Unit\Unit
             new \Doctrine\DBAL\Query\QueryBuilder($connection->reveal())
         );
 
-        /** @var \Doctrine\DBAL\Driver\Statement|ObjectProphecy $resultSet */
-        $resultSet = $this->prophesize(\Doctrine\DBAL\Driver\Statement::class);
-        $resultSet->fetchAll()->willReturn([
-            ['domainName' => 'domainhostname.tld'],
-            ['domainName' => 'otherhostname.tld/path'],
-            ['domainName' => 'sub.domainhostname.tld/path/']
-        ]);
-
-        /** @var ConnectionPool|ObjectProphecy $connectionPool */
-        $connectionPool = $this->prophesize(ConnectionPool::class);
-        $connectionPool->getQueryBuilderForTable('sys_domain')->willReturn($queryBuilder);
-        GeneralUtility::addInstance(ConnectionPool::class, $connectionPool->reveal());
-
-        $connection->executeQuery('SELECT domainName FROM sys_domain', Argument::cetera())
-            ->willReturn($resultSet->reveal());
     }
 
     /**

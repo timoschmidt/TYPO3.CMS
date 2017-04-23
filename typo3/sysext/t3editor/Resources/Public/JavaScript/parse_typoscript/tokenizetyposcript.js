@@ -830,7 +830,6 @@ var typoscriptWords = {
 	'SWORD_PARAMS': 'reserved',
 	'sword_standAlone': 'reserved',
 	'sys_dmail': 'keyword3',
-	'sys_domain': 'keyword3',
 	'sys_filemounts': 'keyword3',
 	'sys_language_mode': 'reserved',
 	'sys_language_overlay': 'reserved',

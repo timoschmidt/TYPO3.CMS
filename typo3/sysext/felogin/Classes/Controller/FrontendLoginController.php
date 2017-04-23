@@ -18,6 +18,7 @@ use TYPO3\CMS\Core\Crypto\Random;
 use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\Restriction\FrontendRestrictionContainer;
+use TYPO3\CMS\Core\Service\SiteService;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Frontend\Controller\TypoScriptFrontendController;
 
@@ -1064,17 +1065,13 @@ class FrontendLoginController extends \TYPO3\CMS\Frontend\Plugin\AbstractPlugin
                 // Removes the last path segment and slash sequences like /// (if given):
                 $path = preg_replace('#/+[^/]*$#', '', $parsedUrl['path']);
 
-                $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)->getQueryBuilderForTable('sys_domain');
-                $queryBuilder->setRestrictions(GeneralUtility::makeInstance(FrontendRestrictionContainer::class));
-                $localDomains = $queryBuilder->select('domainName')
-                    ->from('sys_domain')
-                    ->execute()
-                    ->fetchAll();
+                $domainService = GeneralUtility::makeInstance(SiteService::class);
+                $localDomains = $domainService->getAllDomains();
 
-                if (is_array($localDomains)) {
+                if (!empty($localDomains) ) {
                     foreach ($localDomains as $localDomain) {
                         // strip trailing slashes (if given)
-                        $domainName = rtrim($localDomain['domainName'], '/');
+                        $domainName = rtrim($localDomain, '/');
                         if (GeneralUtility::isFirstPartOfStr($host . $path . '/', $domainName . '/')) {
                             $result = true;
                             break;
